@@ -22,7 +22,7 @@ app.get('/files', (req, res) => {
   res.json(files);
 });
 
-app.get('/:id/files', (req, res) => {
+app.get('/:id/files/metadata', (req, res) => {
   const { id } = req.params;
   if (id) {
     const filePath = path.join(dataPath, id);
@@ -51,9 +51,9 @@ app.get('/:id/files', (req, res) => {
   res.json({ error: `Not found file (id: ${id})` });
 });
 
-app.get('/:id', (req, res) => {
+app.get('/:id/files', (req, res) => {
   const { id } = req.params;
-  const offset = parseInt(req.query.offset, 10);
+  const offset = parseInt(req.query.page_num, 10);
   if (id && !Number.isNaN(offset)) {
     const filePath = path.join(dataPath, id, `${offset + 1}.jpg`);
     if (fs.existsSync(filePath)) {
