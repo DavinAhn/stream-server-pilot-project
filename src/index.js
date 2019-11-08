@@ -22,33 +22,73 @@ app.get('/files', (req, res) => {
   res.json(files);
 });
 
+const getImageSet = (id, callback) => {
+  if (!id) {
+    callback(id, null);
+    return;
+  }
+
+  const filePath = path.join(dataPath, id);
+  if (fs.existsSync(filePath)) {
+    const parser = new ComicParser(filePath);
+    parser.parse({ parseImageSize: true }).then((book) => {
+      const imageSet = {
+        id,
+        front_cover_image: {},
+        content_images: [],
+      };
+      book.items.forEach((item, idx) => {
+        const { width, height } = item;
+        if (idx === 0) {
+          imageSet.front_cover_image = { width, height };
+        } else {
+          imageSet.content_images.push({ width, height });
+        }
+      });
+      callback(id, imageSet);
+    });
+  } else {
+    callback(id, null);
+  }
+};
+
 app.get('/:id/files/metadata', (req, res) => {
   const { id } = req.params;
-  if (id) {
-    const filePath = path.join(dataPath, id);
-    if (fs.existsSync(filePath)) {
-      const parser = new ComicParser(filePath);
-      parser.parse({ parseImageSize: true }).then((book) => {
-        const result = {
-          id,
-          front_cover_image: {},
-          content_images: [],
-        };
-        book.items.forEach((item, idx) => {
-          const { width, height } = item;
-          if (idx === 0) {
-            result.front_cover_image = { width, height };
-          } else {
-            result.content_images.push({ width, height });
-          }
-        });
-        res.json(result);
-      });
-      return;
+  getImageSet(id, (_, imageSet) => {
+    if (imageSet) {
+      res.json(imageSet);
+    } else {
+      res.status(404);
+      res.json({ error: `Not found file (id: ${id})` });
     }
+    res.json(imageSet);
+  });
+});
+
+app.get('/books/metadata', (req, res) => {
+  const { ids } = req.query;
+  if (!ids) {
+    res.status(400);
+    res.json({ error: 'Invalid request.' });
   }
-  res.status(404);
-  res.json({ error: `Not found file (id: ${id})` });
+
+  const promiseList = ids.split(',').map((id) => {
+    return new Promise((resolve) => {
+      getImageSet(id, (id, imageSet) => {
+        resolve({ id, imageSet });
+      });
+    });
+  });
+
+  Promise.all(promiseList).then((results) => {
+    const failList = results.filter(result => result.imageSet === null);
+    if (failList.length) {
+      res.status(404);
+      res.json({ error: `Not found file (id: ${failList[0].id})` });
+    } else {
+      res.json(results.map(result => result.imageSet));
+    }
+  });
 });
 
 app.get('/:id/files', (req, res) => {
